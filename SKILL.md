@@ -85,10 +85,12 @@ description: >-
 
 ### 内置一键拉取清单
 - **大模型预设**（`scripts/deploy_llm_remote.py`）：`t4-gemma12b` / `l4-qwen36-moe` / `l4-qwen38-27b` / `a100-qwen38-q4` / `a100-qwen38-q8`（完整 HF 仓库与文件名见 [references/models-and-gpus.md](./references/models-and-gpus.md)）。
-- **MiniMax H3 视频工作流预设**（`scripts/deploy_comfyui_minimax_h3.py`）：
-  - `fl2va-gguf`（首尾帧/图生视频+音频，L4/A100 通用，默认推荐）
-  - `ref2va-gguf`（参考图角色/服饰一致性生视频+音频，L4/A100 通用）
-  - `fl2va-fp8` / `ref2va-fp8`（A100 官方 FP8 精度版）
+- **MiniMax H3 视频工作流预设**（`scripts/deploy_comfyui_minimax_h3.py`，仓库 `workflows/` 目录已直接内置 6 套对齐好的 JSON 工作流）：
+  - `fl2va-2pass`（**二采放大推荐**：首尾帧/图生视频 + `LBH-123-AI` 3D/2D Latent 放大二次采样精修，L4/A100 通用）
+  - `ref2va-2pass`（**二采放大推荐**：参考图角色/服饰一致性 + 3D/2D Latent 放大二次采样精修，L4/A100 通用）
+  - `fl2va-gguf`（首尾帧/图生视频+音频，GGUF 单采）
+  - `ref2va-gguf`（参考图生视频+音频，GGUF 单采）
+  - `fl2va-fp8` / `ref2va-fp8`（A100 官方 FP8 单采版）
 
 ---
 
@@ -128,15 +130,15 @@ colab new -s <会话名> --gpu <T4|L4|A100>
 1. **拉取 ComfyUI + 必备节点 + MiniMax H3 全套权重与工作流 JSON**：
    ```bash
    colab exec -s <会话名> --timeout 60 \
-     --env H3_MODE=<fl2va-gguf|ref2va-gguf|fl2va-fp8|ref2va-fp8> \
+     --env H3_MODE=<fl2va-2pass|ref2va-2pass|fl2va-gguf|ref2va-gguf|fl2va-fp8|ref2va-fp8> \
      --env H3_QUANT=Q4_K_M \
      --env H3_PORT=8188 \
      -f <本Skill目录>/scripts/deploy_comfyui_minimax_h3.py
    ```
    - 脚本会自动完成：
-     1. 克隆最新版 `ComfyUI`、`ComfyUI-GGUF`、`ComfyUI-VideoHelperSuite`（导出带音频 MP4 必备）。
-     2. 开启 `HF_XET_HIGH_PERFORMANCE=1` 高速拉取 UNet、Qwen3-VL-32B Text Encoder、Video VAE、Audio VAE、Turbo 加速 LoRA，并自动放入 `models/unet`、`models/text_encoders`、`models/vae`、`models/loras`。
-     3. 自动将现成的 MiniMax H3 工作流 JSON 放入 `/content/ComfyUI/user/default/workflows/`。
+     1. 克隆最新版 `ComfyUI`、`ComfyUI-GGUF`、`ComfyUI-VideoHelperSuite`、`ComfyUI-KJNodes`、`Comfyui_Minimax_h3_latent_Upscaler`（二采 3D/2D Latent 放大及分块重采样必备）。
+     2. 开启 `HF_XET_HIGH_PERFORMANCE=1` 高速拉取主模型、Qwen3-VL-32B Text Encoder、Video/Audio VAE、Turbo 加速 LoRA，以及（在 `2pass` 模式下）`LBH-123-AI/Minimax_h3_latent_Upscaler` 的 3D/2D 放大权重到 `models/latent_upscale_models/`。
+     3. 自动将本仓库 `workflows/` 下已对齐好模型下拉框文件名的 6 套工作流 JSON（含 `minimax_h3_i2v_2pass_latent_upscaler.json` 和 `minimax_h3_r2v_2pass_latent_upscaler.json` 两套二采放大工作流）放进 `/content/ComfyUI/user/default/workflows/`。
      4. 自动识别显卡显存（≤26GB 自动加 `--lowvram`，否则 `--normalvram`），在远端 `127.0.0.1:8188` 启动 ComfyUI。
 2. **轮询就绪**：间隔 60 秒查看 `/tmp/comfyui_deploy.log`（整套权重约 42 GB，Colab 内网一般需要 3~5 分钟），直到出现 `COMFYUI_READY|PORT=8188`。
 3. **打通本地 `8188` 端口转发**（作为后台守护任务启动）：

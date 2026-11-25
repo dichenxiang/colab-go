@@ -38,9 +38,16 @@ colab-go/
 ├── SKILL.md                           # Agent 主执行指令（含环境配置、登录引导、GPU 表、一键部署与防烧钱规则）
 ├── references/
 │   └── models-and-gpus.md             # 完整 GPU 消耗对照表、内置 LLM 与 MiniMax H3 权重明细
+├── workflows/                         # 预置 ComfyUI 工作流 JSON（开箱即用，已对齐模型文件名）
+│   ├── minimax_h3_i2v_2pass_latent_upscaler.json   # ⭐ 二采放大：首尾帧/图生视频 + 3D Latent Upscaler
+│   ├── minimax_h3_r2v_2pass_latent_upscaler.json   # ⭐ 二采放大：参考图一致性 + 3D Latent Upscaler
+│   ├── minimax_h3_fl2v_gguf.json                   # 单采：首尾帧/图生视频 GGUF
+│   ├── minimax_h3_ref2va_gguf.json                 # 单采：参考图生视频 GGUF
+│   ├── minimax_h3_fl2va_8step_turbo_gguf.json      # 单采：8 步 Turbo 加速 FL2VA
+│   └── minimax_h3_ref2va_4step_turbo_gguf.json     # 单采：4 步 Turbo 加速 Ref2VA
 └── scripts/
     ├── deploy_llm_remote.py           # Colab 远端一键部署 CUDA llama-server + 内置 GGUF 预设
-    ├── deploy_comfyui_minimax_h3.py   # Colab 远端一键部署 ComfyUI + MiniMax H3 权重与工作流 JSON
+    ├── deploy_comfyui_minimax_h3.py   # Colab 远端一键部署 ComfyUI + MiniMax H3（含二采放大节点与权重）
     ├── open_tunnel.sh                 # 本地 SSH 端口转发脚本（LLM 8000/8001，ComfyUI 8188）
     ├── fix_remote_sshd.py             # 清理 Colab 僵尸 sshd 进程（解决重连报错）
     └── reason_proxy.py                # 可选本地流式代理（将 reasoning_effort high/max 自动转为 xhigh）
