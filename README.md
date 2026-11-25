@@ -48,7 +48,8 @@ colab-go/
 └── scripts/
     ├── deploy_llm_remote.py           # Colab 远端一键部署 CUDA llama-server + 内置 GGUF 预设
     ├── deploy_comfyui_minimax_h3.py   # Colab 远端一键部署 ComfyUI + MiniMax H3（含二采放大节点与权重）
-    ├── open_tunnel.sh                 # 本地 SSH 端口转发脚本（LLM 8000/8001，ComfyUI 8188）
+    ├── open_tunnel.sh                 # 本地 SSH 端口转发脚本（统一密钥路径，LLM 8000/8001，ComfyUI 8188）
+    ├── patch_colab_cli.py             # 修复 google-colab-cli 空 POST 报 HTTP 411 的幂等补丁
     ├── fix_remote_sshd.py             # 清理 Colab 僵尸 sshd 进程（解决重连报错）
     └── reason_proxy.py                # 可选本地流式代理（将 reasoning_effort high/max 自动转为 xhigh）
 ```

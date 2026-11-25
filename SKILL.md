@@ -25,7 +25,7 @@ description: >-
 ## 阶段一：本地环境自动检查与配置
 
 判断当前操作系统：
-- **macOS / Linux**：确认已安装 `ssh`、`uv`（若无则安装），执行 `uv tool install google-colab-cli`，确认 `colab --help` 正常。
+- **macOS / Linux**：确认已安装 `ssh`、`uv`（若无则安装），执行 `uv tool install google-colab-cli`，然后运行 `python3 <本Skill目录>/scripts/patch_colab_cli.py`（修复部分环境下空 POST 报 HTTP 411），确认 `colab --help` 正常。
 - **Windows**：`google-colab-cli` 依赖 Linux 密钥环与 SSH，必须运行在 **WSL 2 (Ubuntu)** 内，按顺序执行：
   1. **检查 WSL 发行版**：运行 `wsl -l -v`。
      - 若无 `Ubuntu`（例如只有 `docker-desktop` 或为空）：执行 `wsl --install -d Ubuntu --no-launch`，然后**⏸️ 暂停并提示用户**打开开始菜单里的 Ubuntu 设置一次 Linux 用户名和密码，完成后回复继续。
@@ -57,6 +57,7 @@ description: >-
        systemctl --user restart gnome-keyring-daemon.service
        ```
      - 安装 `uv`（若无：`curl -LsSf https://astral.sh/uv/install.sh | sh`）并执行 `~/.local/bin/uv tool install google-colab-cli`。
+     - 运行空 POST 411 修复补丁：`wsl -d Ubuntu -e python3 <本Skill目录WSL路径>/scripts/patch_colab_cli.py`（解决部分代理/接口下 `colab new` 空 POST 报 HTTP 411 的问题）。
      - 验证 `~/.local/bin/colab --help` 退出码为 `0`。
 
 ---
@@ -116,7 +117,7 @@ colab new -s <会话名> --gpu <T4|L4|A100>
    ```
    *(若要同时开两张卡，可将第二张卡的 `LLM_PORT` 设为 `8001`。)*
 2. **轮询就绪**：间隔 30~60 秒查看 `/tmp/llm_deploy_<port>.log`，直到出现 `READY|PORT=...`。
-3. **打通本地端口转发**（作为后台守护任务启动）：
+3. **打通本地端口转发**（作为后台守护任务启动；**Windows 务必通过 `wsl -d Ubuntu -e bash` 在 Ubuntu 内运行**，确保复用 WSL 里的 `colab` 与 `~/.ssh` 密钥）：
    ```bash
    bash <本Skill目录>/scripts/open_tunnel.sh <会话名> <本地端口> <远端端口>
    ```

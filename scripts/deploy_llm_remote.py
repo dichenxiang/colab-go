@@ -95,7 +95,7 @@ if not os.path.exists(server_bin):
         curl -sL -o llama.tar.gz "{LLAMA_URL}" &&
         curl -sL -o cudart.tar.gz "{CUDART_URL}" &&
         tar -xzf llama.tar.gz && tar -xzf cudart.tar.gz &&
-        cp --update=none /content/llama-bin/cudart-llama-{LLAMA_TAG}-bin-ubuntu-cuda-12.8-x64/* {bin_dir}/ 2>/dev/null || cp -n /content/llama-bin/cudart-llama-{LLAMA_TAG}-bin-ubuntu-cuda-12.8-x64/* {bin_dir}/ &&
+        cp --update=none /content/llama-bin/cudart-llama-{LLAMA_TAG}-bin-ubuntu-cuda-12.8-x64/* {{bin_dir}}/ 2>/dev/null || cp -n /content/llama-bin/cudart-llama-{LLAMA_TAG}-bin-ubuntu-cuda-12.8-x64/* {{bin_dir}}/ &&
         rm -f llama.tar.gz cudart.tar.gz
     '''], check=True)
 
