@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 """
 Remote Colab deployment script for ComfyUI + MiniMax H3 (Video + Native Stereo Audio),
-including 2-Pass Latent Upscaler ("二采放大") workflows.
+including 2-Pass Latent Upscaler ("二采放大") and free-tier T4 lightweight GGUF modes.
 
 Run on a Colab VM via:
   colab exec -s <session> --timeout 60 -f deploy_comfyui_minimax_h3.py
 
 Configure via environment variables passed with `colab exec --env KEY=VAL`:
   H3_MODE  :
-    - fl2va-2pass  (推荐：首尾帧/图生视频 + 3D/2D Latent 放大二采精修，INT8 主模型，适配 L4/A100)
-    - ref2va-2pass (推荐：参考图一致性生视频 + 3D/2D Latent 放大二采精修，INT8 主模型，适配 L4/A100)
-    - fl2va-gguf   (首尾帧/图生视频 GGUF 单采，适配 L4/A100)
-    - ref2va-gguf  (参考图生视频 GGUF 单采，适配 L4/A100)
-    - fl2va-fp8    (首尾帧/图生视频官方 FP8 单采，适配 A100)
-    - ref2va-fp8   (参考图生视频官方 FP8 单采，适配 A100)
-  H3_QUANT : Q4_K_M (default for GGUF modes, ~19.9GB) | Q3_K_M (~15.6GB)
+    - t4-fl2va-gguf  (免费号 T4 16GB 专用：首尾帧/图生视频，Q3_K 8.76GB + Q2_K 文本编码器 8.49GB + int8 VAE + --force-fp16)
+    - t4-ref2va-gguf (免费号 T4 16GB 专用：参考图一致性生视频，Q3_K 8.72GB + Q2_K 文本编码器 8.49GB + int8 VAE + --force-fp16)
+    - fl2va-2pass    (L4/A100 推荐：首尾帧/图生视频 + 3D/2D Latent 放大二采精修，INT8 主模型)
+    - ref2va-2pass   (L4/A100 推荐：参考图一致性生视频 + 3D/2D Latent 放大二采精修，INT8 主模型)
+    - fl2va-gguf     (L4/A100：首尾帧/图生视频 GGUF 单采)
+    - ref2va-gguf    (L4/A100：参考图生视频 GGUF 单采)
+    - fl2va-fp8      (A100：首尾帧/图生视频官方 FP8 单采)
+    - ref2va-fp8     (A100：参考图生视频官方 FP8 单采)
+  H3_QUANT :
+    - For t4-* modes: Q3_K (default, ~8.7GB) | Q2_K (~6.7GB)
+    - For fl2va-gguf / ref2va-gguf: Q4_K_M (default, ~19.9GB) | Q3_K_M (~15.6GB)
   H3_PORT  : remote ComfyUI port (default: 8188)
 """
 import os
@@ -23,7 +27,8 @@ import subprocess
 
 def main():
     mode = os.environ.get("H3_MODE", "fl2va-2pass")
-    quant = os.environ.get("H3_QUANT", "Q4_K_M")
+    default_quant = "Q3_K" if mode.startswith("t4-") else "Q4_K_M"
+    quant = os.environ.get("H3_QUANT", default_quant)
     port = int(os.environ.get("H3_PORT", "8188"))
 
     worker_code = f'''
@@ -78,14 +83,18 @@ def dl_url(url, dst):
     print("Workflow saved:", dst, flush=True)
 
 print(f"[2/4] Downloading MiniMax H3 weights for mode={{MODE}}, quant={{QUANT}}...", flush=True)
-# Shared VAEs (Video + Audio)
-dl("Comfy-Org/MiniMax-H3", "vae/minimax_h3_video_vae_fp16.safetensors", f"{{COMFY_DIR}}/models/vae")
-dl("Comfy-Org/MiniMax-H3", "vae/minimax_h3_audio_vae_fp32.safetensors", f"{{COMFY_DIR}}/models/vae")
-
-is_ref = MODE.startswith("ref2va")
+is_t4 = MODE.startswith("t4-")
+is_ref = "ref2va" in MODE
 is_2pass = MODE.endswith("-2pass")
 is_fp8 = MODE.endswith("-fp8")
 variant = "ref2va" if is_ref else "fl2va"
+
+# Audio VAE (shared) + Video VAE (int8_convrot 2.81GB for T4, fp16 5.21GB for L4/A100)
+dl("Comfy-Org/MiniMax-H3", "vae/minimax_h3_audio_vae_fp32.safetensors", f"{{COMFY_DIR}}/models/vae")
+if is_t4:
+    dl("Comfy-Org/MiniMax-H3", "vae/minimax_h3_video_vae_int8_convrot.safetensors", f"{{COMFY_DIR}}/models/vae")
+else:
+    dl("Comfy-Org/MiniMax-H3", "vae/minimax_h3_video_vae_fp16.safetensors", f"{{COMFY_DIR}}/models/vae")
 
 # Acceleration Turbo LoRA
 if is_ref:
@@ -94,7 +103,11 @@ else:
     dl("Comfy-Org/MiniMax-H3", "loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors", f"{{COMFY_DIR}}/models/loras")
 
 # Diffusion model + Text Encoder
-if is_2pass:
+if is_t4:
+    # Free-tier T4 (16GB VRAM + ~12.7GB RAM): pruned Q3_K/Q2_K UNet (<9GB) + Q2_K Text Encoder (8.49GB)
+    dl("unsloth/MiniMax-H3-GGUF", f"minimax_h3_{{variant}}_pruned-{{QUANT}}.gguf", f"{{COMFY_DIR}}/models/unet")
+    dl("realrebelai/FastH3-V2_GGUFs", "Text Encoders/qwen3vl-32B-MiniMax-H3-Q2_K.gguf", f"{{COMFY_DIR}}/models/text_encoders")
+elif is_2pass:
     dl("Comfy-Org/MiniMax-H3", f"diffusion_models/minimax_h3_{{variant}}_pruned_int8_convrot.safetensors", f"{{COMFY_DIR}}/models/diffusion_models")
     dl("Comfy-Org/MiniMax-H3", "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", f"{{COMFY_DIR}}/models/text_encoders")
     # 3D + 2D Latent Upscaler models (for 2-pass refinement)
@@ -108,11 +121,13 @@ else:
     dl("Abiray/MiniMax-H3-GGUF", f"unet/{{prefix}}-{{QUANT}}.gguf", f"{{COMFY_DIR}}/models/unet")
     dl("Abiray/MiniMax-H3-GGUF", "text_encoders/qwen3vl_32b_minimax_h3-Q4_K_M.gguf", f"{{COMFY_DIR}}/models/text_encoders")
 
-print("[3/4] Installing pre-aligned MiniMax H3 workflow JSONs (including 2-pass)...", flush=True)
+print("[3/4] Installing pre-aligned MiniMax H3 workflow JSONs (including T4 & 2-pass)...", flush=True)
 wf_dir = f"{{COMFY_DIR}}/user/default/workflows"
 os.makedirs(wf_dir, exist_ok=True)
 wf_base = "https://raw.githubusercontent.com/dichenxiang/colab-go/main/workflows"
 wf_files = [
+    "minimax_h3_t4_fl2va_gguf.json",
+    "minimax_h3_t4_ref2va_gguf.json",
     "minimax_h3_i2v_2pass_latent_upscaler.json",
     "minimax_h3_r2v_2pass_latent_upscaler.json",
     "minimax_h3_fl2v_gguf.json",
@@ -130,9 +145,14 @@ print(f"[4/4] Starting ComfyUI on 127.0.0.1:{{PORT}}...", flush=True)
 subprocess.run(["bash", "-c", "pkill -f 'ComfyUI/main.py' 2>/dev/null || true"])
 time.sleep(1)
 
-vram_mb = int(subprocess.getoutput("nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits").splitlines()[0].strip())
-vram_flag = "--lowvram" if vram_mb <= 26000 else "--normalvram"
-cmd = f"cd {{COMFY_DIR}} && nohup python3 main.py --listen 127.0.0.1 --port {{PORT}} {{vram_flag}} > /tmp/comfyui.log 2>&1 &"
+gpu_info = subprocess.getoutput("nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits").splitlines()[0]
+gpu_name, vram_str = [x.strip() for x in gpu_info.split(",", 1)]
+vram_mb = int(vram_str)
+flags = "--lowvram" if vram_mb <= 26000 else "--normalvram"
+if is_t4 or "T4" in gpu_name.upper():
+    flags += " --force-fp16"
+
+cmd = f"cd {{COMFY_DIR}} && nohup python3 main.py --listen 127.0.0.1 --port {{PORT}} {{flags}} > /tmp/comfyui.log 2>&1 &"
 subprocess.Popen(["bash", "-c", cmd])
 
 for _ in range(45):
@@ -141,7 +161,7 @@ for _ in range(45):
         r = urllib.request.urlopen(f"http://127.0.0.1:{{PORT}}/system_stats", timeout=2).read().decode()
         if "comfyui_version" in r or "devices" in r:
             gpu = subprocess.getoutput("nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader")
-            print(f"COMFYUI_READY|PORT={{PORT}}|MODE={{MODE}}|VRAM_FLAG={{vram_flag}}|GPU={{gpu}}", flush=True)
+            print(f"COMFYUI_READY|PORT={{PORT}}|MODE={{MODE}}|FLAGS={{flags}}|GPU={{gpu}}", flush=True)
             break
     except Exception:
         pass

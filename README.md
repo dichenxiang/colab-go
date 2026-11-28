@@ -39,8 +39,10 @@ colab-go/
 ├── references/
 │   └── models-and-gpus.md             # 完整 GPU 消耗对照表、内置 LLM 与 MiniMax H3 权重明细
 ├── workflows/                         # 预置 ComfyUI 工作流 JSON（开箱即用，已对齐模型文件名）
-│   ├── minimax_h3_i2v_2pass_latent_upscaler.json   # ⭐ 二采放大：首尾帧/图生视频 + 3D Latent Upscaler
-│   ├── minimax_h3_r2v_2pass_latent_upscaler.json   # ⭐ 二采放大：参考图一致性 + 3D Latent Upscaler
+│   ├── minimax_h3_t4_fl2va_gguf.json               # ⭐ T4 免费卡专用：首尾帧/图生视频轻量版（Q3_K + Q2_K）
+│   ├── minimax_h3_t4_ref2va_gguf.json              # ⭐ T4 免费卡专用：参考图一致性轻量版（Q3_K + Q2_K）
+│   ├── minimax_h3_i2v_2pass_latent_upscaler.json   # ⭐ L4/A100 二采放大：首尾帧/图生视频 + 3D Latent Upscaler
+│   ├── minimax_h3_r2v_2pass_latent_upscaler.json   # ⭐ L4/A100 二采放大：参考图一致性 + 3D Latent Upscaler
 │   ├── minimax_h3_fl2v_gguf.json                   # 单采：首尾帧/图生视频 GGUF
 │   ├── minimax_h3_ref2va_gguf.json                 # 单采：参考图生视频 GGUF
 │   ├── minimax_h3_fl2va_8step_turbo_gguf.json      # 单采：8 步 Turbo 加速 FL2VA

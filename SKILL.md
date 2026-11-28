@@ -80,17 +80,17 @@ description: >-
 
 | GPU | 显存 | 参考消耗 | 推荐可跑的模型 / 工作流 |
 | :--- | :--- | :--- | :--- |
-| **T4** | 16 GB | 免费号 0 CU / Pro ~**1.15 CU/h** | 轻量文本/RP：`Gemma-3-12B-abliterated`（`t4-gemma12b`） |
+| **T4** | 16 GB | 免费号 0 CU / Pro ~**1.15 CU/h** | • 轻量文本/RP：`Gemma-3-12B-abliterated`（`t4-gemma12b`）<br>• **免费体验视频**：ComfyUI + **MiniMax H3 T4 轻量版**（`t4-fl2va-gguf` / `t4-ref2va-gguf`，480p 5秒约 15~25 分钟） |
 | **L4** ⭐ | 24 GB | 约 **1.94 CU/h**（性价比最高） | • 极速 MoE：`Qwen3.6-35B-A3B`（`l4-qwen36-moe`，128K，53~71 t/s）<br>• 稳健逻辑：`Qwen3.8-27B`（`l4-qwen38-27b`，128K，~30 t/s）<br>• 视频生成：**ComfyUI + MiniMax H3 GGUF**（5秒带声视频约 6 分钟） |
 | **A100 (40G)** | 40 GB | 约 **6.73 ~ 13 CU/h** | • 满血极速：`Qwen3.8-27B Q4_K_M`（`a100-qwen38-q4`，256K，81~100 t/s）<br>• 准无损：`Qwen3.8-27B Q8_0`（`a100-qwen38-q8`，128K，~58 t/s）<br>• 视频生成：**ComfyUI + MiniMax H3**（GGUF 或官方 FP8 版） |
 
 ### 内置一键拉取清单
 - **大模型预设**（`scripts/deploy_llm_remote.py`）：`t4-gemma12b` / `l4-qwen36-moe` / `l4-qwen38-27b` / `a100-qwen38-q4` / `a100-qwen38-q8`（完整 HF 仓库与文件名见 [references/models-and-gpus.md](./references/models-and-gpus.md)）。
-- **MiniMax H3 视频工作流预设**（`scripts/deploy_comfyui_minimax_h3.py`，仓库 `workflows/` 目录已直接内置 6 套对齐好的 JSON 工作流）：
-  - `fl2va-2pass`（**二采放大推荐**：首尾帧/图生视频 + `LBH-123-AI` 3D/2D Latent 放大二次采样精修，L4/A100 通用）
-  - `ref2va-2pass`（**二采放大推荐**：参考图角色/服饰一致性 + 3D/2D Latent 放大二次采样精修，L4/A100 通用）
-  - `fl2va-gguf`（首尾帧/图生视频+音频，GGUF 单采）
-  - `ref2va-gguf`（参考图生视频+音频，GGUF 单采）
+- **MiniMax H3 视频工作流预设**（`scripts/deploy_comfyui_minimax_h3.py`，仓库 `workflows/` 目录已直接内置 8 套对齐好的 JSON 工作流）：
+  - `t4-fl2va-gguf` / `t4-ref2va-gguf`（**免费号 T4 16GB 专用**：`unsloth` Pruned `Q3_K` 8.7GB + `Q2_K` 文本编码器 8.49GB + `int8` VAE + 自动 `--lowvram --force-fp16`）
+  - `fl2va-2pass`（**L4/A100 二采放大推荐**：首尾帧/图生视频 + `LBH-123-AI` 3D/2D Latent 放大二次采样精修）
+  - `ref2va-2pass`（**L4/A100 二采放大推荐**：参考图角色/服饰一致性 + 3D/2D Latent 放大二次采样精修）
+  - `fl2va-gguf` / `ref2va-gguf`（L4/A100 GGUF 单采）
   - `fl2va-fp8` / `ref2va-fp8`（A100 官方 FP8 单采版）
 
 ---
@@ -131,16 +131,15 @@ colab new -s <会话名> --gpu <T4|L4|A100>
 1. **拉取 ComfyUI + 必备节点 + MiniMax H3 全套权重与工作流 JSON**：
    ```bash
    colab exec -s <会话名> --timeout 60 \
-     --env H3_MODE=<fl2va-2pass|ref2va-2pass|fl2va-gguf|ref2va-gguf|fl2va-fp8|ref2va-fp8> \
-     --env H3_QUANT=Q4_K_M \
+     --env H3_MODE=<t4-fl2va-gguf|t4-ref2va-gguf|fl2va-2pass|ref2va-2pass|fl2va-gguf|ref2va-gguf|fl2va-fp8|ref2va-fp8> \
      --env H3_PORT=8188 \
      -f <本Skill目录>/scripts/deploy_comfyui_minimax_h3.py
    ```
    - 脚本会自动完成：
      1. 克隆最新版 `ComfyUI`、`ComfyUI-GGUF`、`ComfyUI-VideoHelperSuite`、`ComfyUI-KJNodes`、`Comfyui_Minimax_h3_latent_Upscaler`（二采 3D/2D Latent 放大及分块重采样必备）。
-     2. 开启 `HF_XET_HIGH_PERFORMANCE=1` 高速拉取主模型、Qwen3-VL-32B Text Encoder、Video/Audio VAE、Turbo 加速 LoRA，以及（在 `2pass` 模式下）`LBH-123-AI/Minimax_h3_latent_Upscaler` 的 3D/2D 放大权重到 `models/latent_upscale_models/`。
-     3. 自动将本仓库 `workflows/` 下已对齐好模型下拉框文件名的 6 套工作流 JSON（含 `minimax_h3_i2v_2pass_latent_upscaler.json` 和 `minimax_h3_r2v_2pass_latent_upscaler.json` 两套二采放大工作流）放进 `/content/ComfyUI/user/default/workflows/`。
-     4. 自动识别显卡显存（≤26GB 自动加 `--lowvram`，否则 `--normalvram`），在远端 `127.0.0.1:8188` 启动 ComfyUI。
+     2. 开启 `HF_XET_HIGH_PERFORMANCE=1` 高速拉取对应模式的主模型、Text Encoder、Video/Audio VAE、Turbo 加速 LoRA（T4 自动拉 <9GB 的 `Q3_K` + `8.49GB` `Q2_K` 文本编码器 + `int8` VAE；`2pass` 自动拉 3D/2D 放大权重）。
+     3. 自动将本仓库 `workflows/` 下已对齐好模型下拉框文件名的 8 套工作流 JSON（含 T4 专用 `minimax_h3_t4_fl2va_gguf.json` / `minimax_h3_t4_ref2va_gguf.json` 及 L4/A100 二采放大工作流）放进 `/content/ComfyUI/user/default/workflows/`。
+     4. 自动识别显卡（显存 ≤26GB 自动加 `--lowvram`，检测到 T4 自动追加 `--force-fp16` 规避 BF16 报错），在远端 `127.0.0.1:8188` 启动 ComfyUI。
 2. **轮询就绪**：间隔 60 秒查看 `/tmp/comfyui_deploy.log`（整套权重约 42 GB，Colab 内网一般需要 3~5 分钟），直到出现 `COMFYUI_READY|PORT=8188`。
 3. **打通本地 `8188` 端口转发**（作为后台守护任务启动）：
    ```bash
